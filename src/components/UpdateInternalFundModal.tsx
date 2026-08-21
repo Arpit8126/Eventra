@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, Plus, History, User, Mail, DollarSign } from 'lucide-react';
+import { Loader2, Plus, History, User, Mail } from 'lucide-react';
 import type { Profile, InternalFundContribution } from '../types';
 
 interface UpdateInternalFundModalProps {
