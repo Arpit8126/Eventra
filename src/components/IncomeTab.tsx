@@ -87,16 +87,39 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
     setErrorMsg('');
 
     try {
-      const { error } = await supabase.from('income').insert({
-        event_id: eventId,
-        added_by: currentUserId,
-        amount: parsedAmount,
-        income_date: incomeDate,
-        donor_name: donorName.trim(),
-        is_updated: false,
-      });
+      const { data: insertedData, error } = await supabase
+        .from('income')
+        .insert({
+          event_id: eventId,
+          added_by: currentUserId,
+          amount: parsedAmount,
+          income_date: incomeDate,
+          donor_name: donorName.trim(),
+          is_updated: false,
+          status: isCreator ? 'Approved' : 'Pending Approval'
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      if (!isCreator && insertedData) {
+        // Send notification to creator
+        const memberName = profiles[currentUserId]?.full_name || 'A member';
+        const { error: notifError } = await supabase.from('event_notifications').insert({
+          event_id: eventId,
+          member_id: event.creator_id,
+          message: `${memberName} added an income of ₹${parsedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} (${donorName.trim()}) for approval`,
+          income_id: insertedData.id,
+          notification_type: 'income_add_request',
+          status: 'pending'
+        });
+        if (notifError) console.error('Failed to create notification:', notifError);
+        setToast({ message: 'Income request sent to admin for approval.', variant: 'info' });
+      } else {
+        setToast({ message: 'Income added successfully.', variant: 'success' });
+      }
+
       resetForm();
       setShowAddModal(false);
       onRefresh();
@@ -133,17 +156,48 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
     setErrorMsg('');
 
     try {
-      const { error } = await supabase
-        .from('income')
-        .update({
-          amount: parsedAmount,
-          income_date: incomeDate,
-          donor_name: donorName.trim(),
-          is_updated: true, // Mark as updated
-        })
-        .eq('id', editingIncome.id);
+      if (isCreator) {
+        const { error } = await supabase
+          .from('income')
+          .update({
+            amount: parsedAmount,
+            income_date: incomeDate,
+            donor_name: donorName.trim(),
+            is_updated: true,
+          })
+          .eq('id', editingIncome.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        setToast({ message: 'Income updated successfully.', variant: 'success' });
+      } else {
+        const { error } = await supabase
+          .from('income')
+          .update({
+            status: 'Pending Update',
+            pending_update: {
+              amount: parsedAmount,
+              donor_name: donorName.trim(),
+              income_date: incomeDate
+            }
+          })
+          .eq('id', editingIncome.id);
+
+        if (error) throw error;
+
+        // Send notification to creator
+        const memberName = profiles[currentUserId]?.full_name || 'A member';
+        const { error: notifError } = await supabase.from('event_notifications').insert({
+          event_id: eventId,
+          member_id: event.creator_id,
+          message: `${memberName} requested to update income of ₹${editingIncome.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} (${editingIncome.donor_name})`,
+          income_id: editingIncome.id,
+          notification_type: 'income_update_request',
+          status: 'pending'
+        });
+        if (notifError) console.error('Failed to create notification:', notifError);
+        setToast({ message: 'Update request sent to admin for approval.', variant: 'info' });
+      }
+
       resetForm();
       setEditingIncome(null);
       setShowEditModal(false);
@@ -155,21 +209,45 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
     }
   };
 
-  const handleDeleteClick = (incId: string) => {
+  const handleDeleteClick = (inc: Income) => {
     setConfirmDialog({
       isOpen: true,
-      title: 'Delete Income Record',
-      message: 'Delete this income record? This action will be logged and cannot be undone.',
-      confirmLabel: 'Delete',
+      title: isCreator ? 'Delete Income Record' : 'Request Delete Income',
+      message: isCreator 
+        ? 'Delete this income record? This action will be logged and cannot be undone.'
+        : 'Send a request to the admin to delete this income record?',
+      confirmLabel: isCreator ? 'Delete' : 'Send Request',
       variant: 'danger',
       onConfirm: async () => {
         setConfirmDialog(d => ({ ...d, isOpen: false }));
         try {
-          const { error } = await supabase.from('income').delete().eq('id', incId);
-          if (error) throw error;
+          if (isCreator) {
+            const { error } = await supabase.from('income').delete().eq('id', inc.id);
+            if (error) throw error;
+            setToast({ message: 'Income record deleted.', variant: 'success' });
+          } else {
+            const { error } = await supabase
+              .from('income')
+              .update({ status: 'Pending Delete' })
+              .eq('id', inc.id);
+            if (error) throw error;
+
+            // Send notification to creator
+            const memberName = profiles[currentUserId]?.full_name || 'A member';
+            const { error: notifError } = await supabase.from('event_notifications').insert({
+              event_id: eventId,
+              member_id: event.creator_id,
+              message: `${memberName} requested to delete income of ₹${inc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} (${inc.donor_name})`,
+              income_id: inc.id,
+              notification_type: 'income_delete_request',
+              status: 'pending'
+            });
+            if (notifError) console.error('Failed to create notification:', notifError);
+            setToast({ message: 'Delete request sent to admin for approval.', variant: 'info' });
+          }
           onRefresh();
         } catch (err: any) {
-          setToast({ message: err.message || 'Failed to delete income.', variant: 'error' });
+          setToast({ message: err.message || 'Failed to handle delete request.', variant: 'error' });
         }
       },
     });
@@ -266,7 +344,7 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
 
     // 3. Compute Summary Totals (Filtered or Unfiltered)
     const totalInternalFunds = event.internal_fund;
-    const totalExternalFunds = filteredIncomeForPdf.reduce((sum, item) => sum + item.amount, 0);
+    const totalExternalFunds = filteredIncomeForPdf.reduce((sum, item) => sum + (item.status === 'Pending Approval' ? 0 : item.amount), 0);
     const totalFunds = totalInternalFunds + totalExternalFunds;
     const totalExpenses = filteredExpensesForPdf.reduce((sum, item) => sum + item.amount, 0);
     const netRemaining = totalFunds - totalExpenses;
@@ -619,7 +697,7 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
       .sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime());
 
     const sumExpenses = filteredExpenses.reduce((sum, item) => sum + item.amount, 0);
-    const sumIncome = filteredIncome.reduce((sum, item) => sum + item.amount, 0);
+    const sumIncome = filteredIncome.reduce((sum, item) => sum + (item.status === 'Pending Approval' ? 0 : item.amount), 0);
     const baseFund = (activeFilterFrom || activeFilterTo || activeFilterSingle || activeFilterMembers.length > 0) ? 0 : event.internal_fund;
     const totalFunds = baseFund + sumIncome;
     const remainingFunds = totalFunds - sumExpenses;
@@ -779,18 +857,44 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
 
                   {/* Right cluster */}
                   <div className="rrc-right-cluster">
-                    <span className="rrc-amount record-amount income-val">
-                      +₹{inc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="rrc-amount record-amount income-val">
+                        +₹{inc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                      {inc.status && inc.status !== 'Approved' && (
+                        <span className={`status-badge ${inc.status.toLowerCase().replace(/\s+/g, '-')}`} style={{
+                          fontSize: '0.7rem',
+                          padding: '0.15rem 0.4rem',
+                          borderRadius: '4px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.03em',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          ...(inc.status === 'Pending Approval' ? {
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            color: 'var(--color-warning)'
+                          } : inc.status === 'Pending Delete' ? {
+                            background: 'rgba(239, 68, 68, 0.15)',
+                            color: 'var(--color-danger)'
+                          } : {
+                            background: 'rgba(59, 130, 246, 0.15)',
+                            color: '#3b82f6'
+                          })
+                        }}>
+                          {inc.status}
+                        </span>
+                      )}
+                    </div>
 
                     {/* Desktop Direct Buttons */}
                     <div className="rrc-actions-desktop" onClick={(e) => e.stopPropagation()}>
-                      {inc.added_by === currentUserId || isCreator ? (
+                      {(inc.added_by === currentUserId || isCreator) && (!inc.status || inc.status === 'Approved') ? (
                         <>
                           <button className="action-text-btn edit" onClick={() => handleEditClick(inc)} title="Edit">
                             <Edit2 size={12} /> Edit
                           </button>
-                          <button className="action-text-btn delete" onClick={() => handleDeleteClick(inc.id)} title="Delete">
+                          <button className="action-text-btn delete" onClick={() => handleDeleteClick(inc)} title="Delete">
                             <Trash2 size={12} /> Delete
                           </button>
                         </>
@@ -800,7 +904,7 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
                     </div>
 
                     {/* Mobile Three-dot Dropdown */}
-                    {(inc.added_by === currentUserId || isCreator) && (
+                    {(inc.added_by === currentUserId || isCreator) && (!inc.status || inc.status === 'Approved') && (
                       <div className="rrc-actions-mobile" onClick={(e) => e.stopPropagation()}>
                         <button 
                           className="action-icon-btn three-dots"
@@ -821,7 +925,7 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
                               </button>
                               <button 
                                 className="rrc-dropdown-item danger" 
-                                onClick={() => { setActiveMenuId(null); handleDeleteClick(inc.id); }}
+                                onClick={() => { setActiveMenuId(null); handleDeleteClick(inc); }}
                               >
                                 <Trash2 size={12} /> Delete
                               </button>
@@ -901,7 +1005,7 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
                   <button className="btn btn-secondary" onClick={() => { setSelectedRecord(null); handleEditClick(rec); }}>
                     <Edit2 size={14} /> Edit
                   </button>
-                  <button className="btn btn-danger" onClick={() => { setSelectedRecord(null); handleDeleteClick(rec.id); }}>
+                  <button className="btn btn-danger" onClick={() => { setSelectedRecord(null); handleDeleteClick(rec); }}>
                     <Trash2 size={14} /> Delete
                   </button>
                 </div>

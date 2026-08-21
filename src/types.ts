@@ -51,6 +51,8 @@ export interface Income {
   created_at: string;
   added_by_name?: string;
   added_by_email?: string;
+  status?: 'Approved' | 'Pending Approval' | 'Pending Delete' | 'Pending Update';
+  pending_update?: { amount: number; donor_name: string; income_date: string } | null;
 }
 
 export interface AuditLog {
@@ -81,5 +83,8 @@ export interface EventNotification {
   member_id: string;
   message: string;
   created_at: string;
+  income_id?: string | null;
+  notification_type?: 'info' | 'income_add_request' | 'income_delete_request' | 'income_update_request';
+  status?: 'pending' | 'approved' | 'rejected';
 }
 

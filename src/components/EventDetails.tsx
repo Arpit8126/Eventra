@@ -191,7 +191,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
   }, [event.id]);
 
   // Calculations
-  const totalIncomesSum = income.reduce((sum, inc) => sum + Number(inc.amount), 0);
+  const totalIncomesSum = income.reduce((sum, inc) => sum + (inc.status === 'Pending Approval' ? 0 : Number(inc.amount)), 0);
   const totalExpensesSum = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
   const totalFund = event.internal_fund + totalIncomesSum;
   const availableFund = totalFund - totalExpensesSum;
@@ -415,6 +415,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
         <NotificationsTab
           eventId={event.id}
           onClose={() => { window.location.hash = `#/event/${event.id}`; }}
+          onUpdate={fetchBudgetAndRecords}
         />
       ) : isInternalFundsPage ? (
         <InternalFundsTab
@@ -427,7 +428,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
       ) : isReportPage ? (
         (() => {
           const totalInternalFunds = event.internal_fund;
-          const totalExternalFunds = income.reduce((sum, inc) => sum + Number(inc.amount), 0);
+          const totalExternalFunds = income.reduce((sum, inc) => sum + (inc.status === 'Pending Approval' ? 0 : Number(inc.amount)), 0);
           const totalFunds = totalInternalFunds + totalExternalFunds;
           const totalExpensesAmt = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
           const netRemaining = totalFunds - totalExpensesAmt;
@@ -448,7 +449,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
 
           const combinedList: CombinedTx[] = [
             ...expenses.map(exp => ({ type: 'expense' as const, id: exp.id, dateObj: new Date(exp.expense_date), description: exp.purpose, amount: Number(exp.amount), added_by: exp.added_by, created_at: exp.created_at, expense_date: exp.expense_date })),
-            ...income.map(inc => ({ type: 'income' as const, id: inc.id, dateObj: new Date(inc.income_date), description: inc.donor_name, amount: Number(inc.amount), added_by: inc.added_by, created_at: inc.created_at, income_date: inc.income_date })),
+            ...income.filter(inc => inc.status !== 'Pending Approval').map(inc => ({ type: 'income' as const, id: inc.id, dateObj: new Date(inc.income_date), description: inc.donor_name, amount: Number(inc.amount), added_by: inc.added_by, created_at: inc.created_at, income_date: inc.income_date })),
           ];
           combinedList.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
@@ -461,7 +462,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
           });
 
           const sortedExpDesc = [...expenses].sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime());
-          const sortedIncDesc = [...income].sort((a, b) => new Date(b.income_date).getTime() - new Date(a.income_date).getTime());
+          const sortedIncDesc = [...income].filter(inc => inc.status !== 'Pending Approval').sort((a, b) => new Date(b.income_date).getTime() - new Date(a.income_date).getTime());
 
           const fmtDT = (iso: string) => {
             const d = new Date(iso);
