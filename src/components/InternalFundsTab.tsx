@@ -150,7 +150,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
   return (
     <div className="internal-funds-page" style={{ padding: '1.5rem 1rem 5rem', maxWidth: '1000px', margin: '0 auto' }}>
       {/* Header Row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+      <div className="fund-header-row" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <button 
           className="back-btn" 
           onClick={onClose} 
@@ -160,9 +160,9 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
           <ArrowLeft size={18} />
         </button>
         <div style={{ flex: 1, minWidth: '200px' }}>
-          <h2 style={{ margin: 0, fontFamily: 'Outfit', fontWeight: 700, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <TrendingUp size={22} style={{ color: 'var(--color-primary)' }} />
-            Event Internal Funds
+          <h2 className="fund-header-title" style={{ margin: 0, fontFamily: 'Outfit', fontWeight: 700, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <TrendingUp size={22} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+            <span style={{ wordBreak: 'break-word' }}>Event Internal Funds</span>
           </h2>
           <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             {isCreator 
@@ -241,7 +241,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
                 }}
               >
                 {/* Top Info Layout */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                <div className="fund-member-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <div style={{
                       width: '44px',
@@ -253,12 +253,13 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,
-                      fontSize: '1.1rem'
+                      fontSize: '1.1rem',
+                      flexShrink: 0
                     }}>
                       {profile.full_name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem', color: 'var(--text-main)' }}>
+                      <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.05rem', color: 'var(--text-main)', flexWrap: 'wrap' }}>
                         {profile.full_name}
                         {isCreatorProfile && (
                           <span style={{
@@ -277,12 +278,12 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
                       </div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.2rem' }}>
                         <Mail size={13} />
-                        {profile.email}
+                        <span style={{ wordBreak: 'break-all' }}>{profile.email}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="fund-total-amount-block" style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Total Internal Fund</span>
                     <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-success)', marginTop: '0.1rem' }}>
                       ₹{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -374,6 +375,26 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
 
       <style>{`
         @media (max-width: 600px) {
+          .fund-header-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 0.75rem !important;
+          }
+          .fund-header-title {
+            font-size: 1.25rem !important;
+          }
+          .fund-member-top {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.5rem !important;
+          }
+          .fund-total-amount-block {
+            text-align: left !important;
+            width: 100% !important;
+            margin-top: 0.25rem !important;
+            border-top: 1px dashed var(--border-color) !important;
+            padding-top: 0.75rem !important;
+          }
           .fund-action-container {
             flex-direction: column !important;
             align-items: stretch !important;
