@@ -173,7 +173,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
         </div>
 
         {/* Search input */}
-        <div style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
+        <div className="fund-search-wrapper" style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
           <input
             type="text"
             className="form-input"
@@ -377,8 +377,12 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
         @media (max-width: 600px) {
           .fund-header-row {
             flex-direction: column !important;
-            align-items: stretch !important;
+            align-items: flex-start !important;
             gap: 0.75rem !important;
+          }
+          .fund-search-wrapper {
+            max-width: none !important;
+            width: 100% !important;
           }
           .fund-header-title {
             font-size: 1.25rem !important;
