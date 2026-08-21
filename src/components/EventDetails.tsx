@@ -4,12 +4,14 @@ import type { Event, Expense, Income, Profile } from '../types';
 import { ExpensesTab } from './ExpensesTab';
 import { IncomeTab } from './IncomeTab';
 import { UpdateInternalFundModal } from './UpdateInternalFundModal';
+import { SeeInternalFundsModal } from './SeeInternalFundsModal';
+import { NotificationsTab } from './NotificationsTab';
 import { AddMembersModal } from './AddMembersModal';
 import { LogsModal } from './LogsModal';
 import { AnalyticsModal } from './AnalyticsModal';
 import { ConfirmDialog, Toast } from './ConfirmDialog';
 import type { DialogVariant } from './ConfirmDialog';
-import { ArrowLeft, MoreVertical, Users, BarChart2, FileText, Settings, Trash2, Edit2, LogOut, Loader2, Sun, Moon } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Users, BarChart2, FileText, Settings, Trash2, Edit2, LogOut, Loader2, Sun, Moon, Bell } from 'lucide-react';
 
 interface EventDetailsProps {
   event: Event;
@@ -46,6 +48,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
   const [renameLoading, setRenameLoading] = useState(false);
 
   const [showInternalFundModal, setShowInternalFundModal] = useState(false);
+  const [showSeeInternalFundsModal, setShowSeeInternalFundsModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [currentHash, setCurrentHash] = useState(window.location.hash);
 
@@ -75,6 +78,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
   const isLogsPage = currentHash.endsWith('/logs');
   const isAnalyticsPage = currentHash.endsWith('/analytics');
   const isReportPage = currentHash.endsWith('/report');
+  const isNotificationsPage = currentHash.endsWith('/notifications');
 
   // Click-away to close three-dot menu dropdown
   useEffect(() => {
@@ -269,7 +273,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
       <div className="event-header-flat event-hub-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="header-top">
-            <button className="back-btn" onClick={isLogsPage || isAnalyticsPage || isReportPage ? () => { window.location.hash = `#/event/${event.id}`; } : onBack} title={isLogsPage || isAnalyticsPage || isReportPage ? "Back to Event Details" : "Back to Events"}>
+            <button className="back-btn" onClick={isLogsPage || isAnalyticsPage || isReportPage || isNotificationsPage ? () => { window.location.hash = `#/event/${event.id}`; } : onBack} title={isLogsPage || isAnalyticsPage || isReportPage || isNotificationsPage ? "Back to Event Details" : "Back to Events"}>
               <ArrowLeft size={18} />
             </button>
             <div>
@@ -304,7 +308,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
                         <Edit2 size={14} /> Rename Event
                       </button>
                       <button onClick={() => { setShowMenu(false); setShowInternalFundModal(true); }}>
-                        <Settings size={14} /> Update Internal Fund
+                        <Settings size={14} /> Update Internal Funds
                       </button>
                       <button onClick={() => { setShowMenu(false); setShowAddMembersModal(true); }}>
                         <Users size={14} /> Add/Remove Members
@@ -314,6 +318,9 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
                       </button>
                       <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/analytics`; }}>
                         <BarChart2 size={14} /> Analytics
+                      </button>
+                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/notifications`; }}>
+                        <Bell size={14} /> See Notifications
                       </button>
                       <button onClick={() => { setShowMenu(false); handleViewReport(); }} className="desktop-only-action">
                         <FileText size={14} /> View Report
@@ -325,11 +332,17 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
                     </>
                   ) : (
                     <>
+                      <button onClick={() => { setShowMenu(false); setShowSeeInternalFundsModal(true); }}>
+                        <Settings size={14} /> See Internal Funds
+                      </button>
                       <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/logs`; }}>
                         <FileText size={14} /> See Logs
                       </button>
                       <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/analytics`; }}>
                         <BarChart2 size={14} /> See Analytics
+                      </button>
+                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/notifications`; }}>
+                        <Bell size={14} /> See Notifications
                       </button>
                       <button onClick={() => { setShowMenu(false); handleViewReport(); }} className="desktop-only-action">
                         <FileText size={14} /> View Report
@@ -395,6 +408,11 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
           income={income}
           onClose={() => { window.location.hash = `#/event/${event.id}`; }}
           isFullPage={true}
+        />
+      ) : isNotificationsPage ? (
+        <NotificationsTab
+          eventId={event.id}
+          onClose={() => { window.location.hash = `#/event/${event.id}`; }}
         />
       ) : isReportPage ? (
         (() => {
@@ -712,9 +730,18 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
       {showInternalFundModal && (
         <UpdateInternalFundModal
           eventId={event.id}
-          currentFund={event.internal_fund}
+          creatorId={event.creator_id}
           onClose={() => setShowInternalFundModal(false)}
           onUpdate={fetchBudgetAndRecords}
+        />
+      )}
+
+      {/* See Internal Funds Modal */}
+      {showSeeInternalFundsModal && (
+        <SeeInternalFundsModal
+          eventId={event.id}
+          creatorId={event.creator_id}
+          onClose={() => setShowSeeInternalFundsModal(false)}
         />
       )}
 

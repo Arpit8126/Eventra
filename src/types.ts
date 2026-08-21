@@ -63,3 +63,23 @@ export interface AuditLog {
   performed_by_name?: string;
   performed_by_email?: string;
 }
+
+export interface InternalFundContribution {
+  id: string;
+  event_id: string;
+  member_id: string;
+  amount: number;
+  added_by: string;
+  created_at: string;
+  member_name?: string;
+  member_email?: string;
+}
+
+export interface EventNotification {
+  id: string;
+  event_id: string;
+  member_id: string;
+  message: string;
+  created_at: string;
+}
+
