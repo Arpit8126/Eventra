@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Income, Profile } from '../types';
+import type { Income, Profile, Event, Expense } from '../types';
 import { Plus, Edit2, Trash2, Calendar, User, Filter, X, MoreVertical, RotateCw, ArrowUp } from 'lucide-react';
+import { generateMobilePDF } from '../lib/generateMobilePDF';
 import { ConfirmDialog, Toast } from './ConfirmDialog';
 import type { DialogVariant } from './ConfirmDialog';
 
@@ -11,6 +12,8 @@ interface IncomeTabProps {
   isCreator: boolean;
   profiles: Record<string, Profile>;
   income: Income[];
+  expenses: Expense[];
+  event: Event;
   onRefresh: () => void;
 }
 
@@ -20,6 +23,8 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
   isCreator,
   profiles,
   income,
+  expenses,
+  event,
   onRefresh,
 }) => {
   // Add/Edit Modal states
@@ -220,6 +225,456 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
+  // PDF download handler
+  const handleDownloadPDF = () => {
+    // ── Mobile: use jsPDF for direct file download (no print dialog) ──
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent)
+      || window.innerWidth <= 768;
+
+    // Build filtered arrays (same logic for both paths)
+    const filteredExpensesForPdf = expenses.filter((exp) => {
+      if (activeFilterMembers.length > 0) return activeFilterMembers.includes(exp.added_by);
+      const expDateStr = exp.expense_date.split('T')[0];
+      if (activeFilterSingle) return expDateStr === activeFilterSingle;
+      if (activeFilterFrom && expDateStr < activeFilterFrom) return false;
+      if (activeFilterTo && expDateStr > activeFilterTo) return false;
+      return true;
+    });
+    const filteredIncomeForPdf = income.filter((inc) => {
+      if (activeFilterMembers.length > 0) return activeFilterMembers.includes(inc.added_by);
+      const incDateStr = inc.income_date.split('T')[0];
+      if (activeFilterSingle) return incDateStr === activeFilterSingle;
+      if (activeFilterFrom && incDateStr < activeFilterFrom) return false;
+      if (activeFilterTo && incDateStr > activeFilterTo) return false;
+      return true;
+    });
+    const isFiltered = !!(activeFilterFrom || activeFilterTo || activeFilterSingle || activeFilterMembers.length > 0);
+
+    if (isMobile) {
+      generateMobilePDF({
+        eventName: event.name,
+        internalFund: event.internal_fund,
+        profiles,
+        isFiltered,
+        filteredExpenses: filteredExpensesForPdf,
+        filteredIncome: filteredIncomeForPdf,
+      });
+      return;
+    }
+
+    // ── Desktop: original window.open / print flow (unchanged) ──
+
+    // 3. Compute Summary Totals (Filtered or Unfiltered)
+    const totalInternalFunds = event.internal_fund;
+    const totalExternalFunds = filteredIncomeForPdf.reduce((sum, item) => sum + item.amount, 0);
+    const totalFunds = totalInternalFunds + totalExternalFunds;
+    const totalExpenses = filteredExpensesForPdf.reduce((sum, item) => sum + item.amount, 0);
+    const netRemaining = totalFunds - totalExpenses;
+
+    // 4. Combine all records for the combined chronological ledger (ordered oldest first)
+    interface CombinedTx {
+      type: 'expense' | 'income';
+      id: string;
+      date: string; // expense_date or income_date
+      dateObj: Date;
+      description: string;
+      addedBy: string;
+      amount: number;
+      created_at: string;
+    }
+
+    const combinedList: CombinedTx[] = [
+      ...filteredExpensesForPdf.map((exp) => ({
+        type: 'expense' as const,
+        id: exp.id,
+        date: exp.expense_date,
+        dateObj: new Date(exp.expense_date),
+        description: exp.purpose,
+        addedBy: exp.added_by,
+        amount: exp.amount,
+        created_at: exp.created_at,
+      })),
+      ...filteredIncomeForPdf.map((inc) => ({
+        type: 'income' as const,
+        id: inc.id,
+        date: inc.income_date,
+        dateObj: new Date(inc.income_date),
+        description: inc.donor_name,
+        addedBy: inc.added_by,
+        amount: inc.amount,
+        created_at: inc.created_at,
+      })),
+    ];
+
+    // Sort chronologically (oldest first) by the user-selected date
+    combinedList.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+    // 5. Group combined list by Month-Year (chronological order)
+    const chronologicalMonths: string[] = [];
+    const monthlyGroups: Record<string, CombinedTx[]> = {};
+
+    combinedList.forEach((tx) => {
+      // e.g. "February 2026"
+      const monthYearStr = tx.dateObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      if (!monthlyGroups[monthYearStr]) {
+        monthlyGroups[monthYearStr] = [];
+        chronologicalMonths.push(monthYearStr);
+      }
+      monthlyGroups[monthYearStr].push(tx);
+    });
+
+    // 6. Build the Combined Monthly tables HTML
+    let monthlyTablesHtml = '';
+    
+    chronologicalMonths.forEach((monthName) => {
+      const monthTxList = monthlyGroups[monthName];
+      let monthExpenses = 0;
+      let monthIncome = 0;
+
+      const rowsHtml = monthTxList.map((tx) => {
+        const expenseCell = tx.type === 'expense' ? `₹${tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '₹0.00';
+        const incomeCell = tx.type === 'income' ? `₹${tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '₹0.00';
+        
+        if (tx.type === 'expense') monthExpenses += tx.amount;
+        if (tx.type === 'income') monthIncome += tx.amount;
+
+        const netChange = tx.type === 'income' ? tx.amount : -tx.amount;
+        const netChangeStr = netChange >= 0 
+          ? `₹+${netChange.toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
+          : `₹-${Math.abs(netChange).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        const netColor = netChange >= 0 ? '#16a34a' : '#dc2626';
+
+        const formattedDate = tx.dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+        return `
+          <tr>
+            <td>${formattedDate}</td>
+            <td>${tx.description || '—'}</td>
+            <td style="text-align: right; color: #dc2626; white-space: nowrap;">${expenseCell}</td>
+            <td style="text-align: right; color: #16a34a; white-space: nowrap;">${incomeCell}</td>
+            <td style="text-align: right; color: ${netColor}; font-weight: 600; white-space: nowrap;">${netChangeStr}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const monthNet = monthIncome - monthExpenses;
+      const monthNetStr = monthNet >= 0 
+        ? `₹+${monthNet.toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
+        : `₹-${Math.abs(monthNet).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+      const monthNetColor = monthNet >= 0 ? '#10b981' : '#ef4444';
+
+      monthlyTablesHtml += `
+        <div class="month-section" style="page-break-inside: avoid; margin-bottom: 2rem;">
+          <div class="month-title">${monthName}</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 12%;">Date</th>
+                <th style="width: 40%;">Description</th>
+                <th style="text-align: right; width: 15%;">Expense</th>
+                <th style="text-align: right; width: 15%;">Income</th>
+                <th style="text-align: right; width: 18%;">Net Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+            <tfoot>
+              <tr style="font-weight: 700; background-color: #f8fafc;">
+                <td colspan="2" style="text-align: right;">Monthly Subtotals:</td>
+                <td style="text-align: right; color: #dc2626; white-space: nowrap;">₹${monthExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: right; color: #16a34a; white-space: nowrap;">₹${monthIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                <td style="text-align: right; color: ${monthNetColor}; white-space: nowrap;">${monthNetStr}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      `;
+    });
+
+    // 7. Build Descending Detailed Ledgers (Latest to Oldest)
+    const sortedExpensesDesc = [...filteredExpensesForPdf].sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime());
+    const sortedIncomeDesc = [...filteredIncomeForPdf].sort((a, b) => new Date(b.income_date).getTime() - new Date(a.income_date).getTime());
+
+    const formatCreationDateTime = (isoString: string) => {
+      const d = new Date(isoString);
+      const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+      return `${dateStr} at ${timeStr}`;
+    };
+
+    const detailedExpenseRows = sortedExpensesDesc.map((exp, idx) => {
+      const profile = profiles[exp.added_by];
+      const addedByMember = profile 
+        ? `<div>${profile.full_name || '—'}</div><div style="font-size: 0.725rem; color: #64748b; font-weight: normal; margin-top: 0.15rem;">${profile.email || ''}</div>`
+        : '—';
+      const formattedExpenseDate = new Date(exp.expense_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      return `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td>${formattedExpenseDate}</td>
+          <td>${exp.purpose || '—'}</td>
+          <td>${addedByMember}</td>
+          <td style="font-size: 0.75rem; color: #64748b;">${formatCreationDateTime(exp.created_at)}</td>
+          <td style="text-align: right; color: #dc2626; font-weight: 600;">₹${exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const detailedIncomeRows = sortedIncomeDesc.map((inc, idx) => {
+      const profile = profiles[inc.added_by];
+      const addedByMember = profile 
+        ? `<div>${profile.full_name || '—'}</div><div style="font-size: 0.725rem; color: #64748b; font-weight: normal; margin-top: 0.15rem;">${profile.email || ''}</div>`
+        : '—';
+      const formattedIncomeDate = new Date(inc.income_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      return `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td>${formattedIncomeDate}</td>
+          <td>${inc.donor_name || '—'}</td>
+          <td>${addedByMember}</td>
+          <td style="font-size: 0.75rem; color: #64748b;">${formatCreationDateTime(inc.created_at)}</td>
+          <td style="text-align: right; color: #16a34a; font-weight: 600;">₹${inc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to download/print the PDF report.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Financial Report - ${event.name}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 2rem; color: #111; line-height: 1.5; }
+            .header-container { border-bottom: 2px solid #eaeaea; padding-bottom: 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: flex-end; }
+            .header-title h1 { margin: 0 0 0.25rem 0; font-size: 1.75rem; color: #1e293b; }
+            .header-title p { margin: 0; color: #64748b; font-size: 0.85rem; }
+            .report-meta { text-align: right; font-size: 0.85rem; color: #64748b; }
+            
+            .summary-section { margin-bottom: 2.5rem; }
+            .summary-title { font-size: 1.1rem; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; }
+            .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1rem; }
+            .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 1rem 0.5rem; border-radius: 8px; text-align: center; }
+            .card-label { font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 0.5rem; }
+            .card-value { font-size: 1.15rem; font-weight: 700; color: #0f172a; white-space: nowrap; }
+            
+            .section-title { font-size: 1.15rem; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2.5rem; margin-bottom: 1rem; border-bottom: 2px solid #cbd5e1; padding-bottom: 0.5rem; }
+            .month-title { font-size: 1.05rem; font-weight: 700; color: #ff385c; margin-top: 1.5rem; margin-bottom: 0.75rem; text-transform: uppercase; }
+            
+            table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+            th, td { padding: 0.75rem 0.75rem; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; text-align: left; }
+            th { background-color: #f1f5f9; color: #475569; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
+            
+            .no-records { padding: 2rem; text-align: center; color: #94a3b8; font-style: italic; background: #fafafa; border-radius: 6px; }
+
+            @media print {
+              body { padding: 0; }
+              .summary-card { background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              tfoot tr { background-color: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-container">
+            <div class="header-title">
+              <h1>${event.name}</h1>
+              <p>Financial Statement & Combined Monthly Accounts Ledger</p>
+            </div>
+            <div class="report-meta">
+              <div>Date Generated: ${new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              ${(activeFilterFrom || activeFilterTo || activeFilterSingle || activeFilterMembers.length > 0) ? '<div style="color: #ef4444; font-weight: 600;">[Filtered Report]</div>' : ''}
+            </div>
+          </div>
+
+          <div class="summary-section">
+            <div class="summary-title">Financial Summary Overview</div>
+            <div class="summary-grid">
+              <div class="summary-card">
+                <div class="card-label">Internal Funds</div>
+                <div class="card-value">₹${totalInternalFunds.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div class="summary-card">
+                <div class="card-label">External Funds</div>
+                <div class="card-value">₹${totalExternalFunds.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div class="summary-card">
+                <div class="card-label">Total Funds</div>
+                <div class="card-value" style="color: #10b981;">₹${totalFunds.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div class="summary-card">
+                <div class="card-label">Total Expenses</div>
+                <div class="card-value" style="color: #ef4444;">₹${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+              <div class="summary-card">
+                <div class="card-label">Net Balance</div>
+                <div class="card-value" style="color: ${netRemaining >= 0 ? '#10b981' : '#ef4444'};">₹${netRemaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-title">Monthly Activity Ledger</div>
+          ${chronologicalMonths.length === 0 ? `
+            <div class="no-records">No transaction records found in the combined history.</div>
+          ` : monthlyTablesHtml}
+
+          <div class="section-title" style="page-break-before: always;">Expenses Ledger Breakdown (Latest to Oldest)</div>
+          ${sortedExpensesDesc.length === 0 ? `
+            <div class="no-records">No expense records found.</div>
+          ` : `
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 5%; text-align: center;">#</th>
+                  <th style="width: 15%;">Date</th>
+                  <th style="width: 35%;">Purpose / Description</th>
+                  <th style="width: 15%;">Added By</th>
+                  <th style="width: 18%;">Added On</th>
+                  <th style="text-align: right; width: 12%;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detailedExpenseRows}
+              </tbody>
+              <tfoot>
+                <tr style="font-weight: 700; background-color: #f8fafc;">
+                  <td colspan="5" style="text-align: right;">Total Expenses:</td>
+                  <td style="text-align: right; color: #dc2626;">₹${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tfoot>
+            </table>
+          `}
+
+          <div class="section-title">Income Ledger Breakdown (Latest to Oldest)</div>
+          ${sortedIncomeDesc.length === 0 ? `
+            <div class="no-records">No income records found.</div>
+          ` : `
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 5%; text-align: center;">#</th>
+                  <th style="width: 15%;">Date</th>
+                  <th style="width: 35%;">Contributor</th>
+                  <th style="width: 15%;">Added By</th>
+                  <th style="width: 18%;">Added On</th>
+                  <th style="text-align: right; width: 12%;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detailedIncomeRows}
+              </tbody>
+              <tfoot>
+                <tr style="font-weight: 700; background-color: #f8fafc;">
+                  <td colspan="5" style="text-align: right;">Total Income:</td>
+                  <td style="text-align: right; color: #16a34a;">₹${totalExternalFunds.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tfoot>
+            </table>
+          `}
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Excel CSV download handler
+  const handleDownloadExcel = () => {
+    const filteredIncome = income
+      .filter((inc) => {
+        if (activeFilterMembers.length > 0) {
+          return activeFilterMembers.includes(inc.added_by);
+        }
+        const incDateStr = inc.income_date.split('T')[0];
+        if (activeFilterSingle) return incDateStr === activeFilterSingle;
+        if (activeFilterFrom && incDateStr < activeFilterFrom) return false;
+        if (activeFilterTo && incDateStr > activeFilterTo) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.income_date).getTime() - new Date(a.income_date).getTime());
+
+    const filteredExpenses = expenses
+      .filter((exp) => {
+        if (activeFilterMembers.length > 0) {
+          return activeFilterMembers.includes(exp.added_by);
+        }
+        const expDateStr = exp.expense_date.split('T')[0];
+        if (activeFilterSingle) return expDateStr === activeFilterSingle;
+        if (activeFilterFrom && expDateStr < activeFilterFrom) return false;
+        if (activeFilterTo && expDateStr > activeFilterTo) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime());
+
+    const sumExpenses = filteredExpenses.reduce((sum, item) => sum + item.amount, 0);
+    const sumIncome = filteredIncome.reduce((sum, item) => sum + item.amount, 0);
+    const baseFund = (activeFilterFrom || activeFilterTo || activeFilterSingle || activeFilterMembers.length > 0) ? 0 : event.internal_fund;
+    const totalFunds = baseFund + sumIncome;
+    const remainingFunds = totalFunds - sumExpenses;
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    
+    csvContent += `"${event.name} - Financial Statement & Accounts Ledger"\n`;
+    csvContent += `"Date Generated:","${new Date().toLocaleDateString()}"\n`;
+    if (activeFilterFrom || activeFilterTo || activeFilterSingle || activeFilterMembers.length > 0) {
+      csvContent += `"* Note:","This is a filtered financial statement."\n`;
+    }
+    csvContent += `\n`;
+
+    csvContent += `"STATEMENT SUMMARY"\n`;
+    csvContent += `"Total Funds (Budget)","₹${totalFunds.toFixed(2)}"\n`;
+    csvContent += `"Total Expenses","₹${sumExpenses.toFixed(2)}"\n`;
+    csvContent += `"Remaining Balance","₹${remainingFunds.toFixed(2)}"\n`;
+    csvContent += `\n`;
+
+    csvContent += `"INCOME LEDGER"\n`;
+    csvContent += `"#","Date","Contributor","Added By","Amount"\n`;
+    if (filteredIncome.length === 0) {
+      csvContent += `"No income transactions found."\n`;
+    } else {
+      filteredIncome.forEach((inc, idx) => {
+        const byName = inc.added_by === currentUserId ? 'You' : (profiles[inc.added_by]?.full_name || '—');
+        csvContent += `"${idx + 1}","${new Date(inc.income_date).toLocaleDateString()}","${inc.donor_name || '—'}","${byName}","₹${inc.amount.toFixed(2)}"\n`;
+      });
+    }
+    csvContent += `\n`;
+
+    csvContent += `"EXPENSES LEDGER"\n`;
+    csvContent += `"#","Date","Purpose / Description","Added By","Amount"\n`;
+    if (filteredExpenses.length === 0) {
+      csvContent += `"No expense transactions found."\n`;
+    } else {
+      filteredExpenses.forEach((exp, idx) => {
+        const byName = exp.added_by === currentUserId ? 'You' : (profiles[exp.added_by]?.full_name || '—');
+        csvContent += `"${idx + 1}","${new Date(exp.expense_date).toLocaleDateString()}","${exp.purpose || '—'}","${byName}","₹${exp.amount.toFixed(2)}"\n`;
+      });
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    
+    const safeEventName = event.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    link.setAttribute("download", `${safeEventName}_financial_statement.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const formatCreationDateTime = (isoString: string) => {
     const d = new Date(isoString);
     const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -250,6 +705,26 @@ export const IncomeTab: React.FC<IncomeTabProps> = ({
         </button>
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* PDF Download Button */}
+          <button
+            className="rab-export-btn rab-export-btn--pdf"
+            title="Download PDF Financial Report"
+            onClick={handleDownloadPDF}
+          >
+            <img src="/pdf-svgrepo-com.svg" alt="PDF" width={16} height={16} style={{ display: 'block', flexShrink: 0 }} />
+            <span className="rab-refresh-text">PDF</span>
+          </button>
+
+          {/* Excel Download Button */}
+          <button
+            className="rab-export-btn rab-export-btn--excel"
+            title="Download Excel Spreadsheet"
+            onClick={handleDownloadExcel}
+          >
+            <img src="/ms-excel-svgrepo-com.svg" alt="Excel" width={16} height={16} style={{ display: 'block', flexShrink: 0 }} />
+            <span className="rab-refresh-text">Excel</span>
+          </button>
+
           <button
             className="rab-refresh-btn"
             title="Refresh Records"

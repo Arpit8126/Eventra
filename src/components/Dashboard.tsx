@@ -101,14 +101,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       // 3. Compute financial aggregates for all visible event IDs
       const eventIds = [...parsedCreated.map((e) => e.id), ...parsedJoined.map((e) => e.id)];
+      const expMap: Record<string, number> = {};
+      const incMap: Record<string, number> = {};
+
       if (eventIds.length > 0) {
         const [expensesRes, incomeRes] = await Promise.all([
           supabase.from('expenses').select('event_id, amount').in('event_id', eventIds),
           supabase.from('income').select('event_id, amount').in('event_id', eventIds),
         ]);
-
-        const expMap: Record<string, number> = {};
-        const incMap: Record<string, number> = {};
 
         (expensesRes.data || []).forEach((item) => {
           expMap[item.event_id] = (expMap[item.event_id] || 0) + item.amount;
@@ -121,8 +121,42 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setEventExpenses(expMap);
         setEventIncome(incMap);
       }
+
+      // Automatically store/update the offline backup for the dashboard
+      try {
+        const backupData = {
+          createdEvents: parsedCreated,
+          joinedEvents: parsedJoined,
+          eventExpenses: expMap,
+          eventIncome: incMap,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(`eventra_dashboard_backup_${userId}`, JSON.stringify(backupData));
+      } catch (backupErr) {
+        console.error('Failed to save dashboard backup locally:', backupErr);
+      }
     } catch (err: any) {
-      console.error('Error fetching events:', err);
+      console.error('Error fetching events, trying local offline backup:', err);
+      try {
+        const cached = localStorage.getItem(`eventra_dashboard_backup_${userId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setCreatedEvents(parsed.createdEvents || []);
+          setJoinedEvents(parsed.joinedEvents || []);
+          setEventExpenses(parsed.eventExpenses || {});
+          setEventIncome(parsed.eventIncome || {});
+
+          const cacheDate = new Date(parsed.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setToast({
+            message: `Loaded offline backup from ${cacheDate}. You are currently offline.`,
+            variant: 'info',
+          });
+        } else {
+          setToast({ message: 'Failed to load events. No offline backup found.', variant: 'error' });
+        }
+      } catch (cacheErr) {
+        console.error('Failed to parse dashboard local backup:', cacheErr);
+      }
     } finally {
       setLoading(false);
     }

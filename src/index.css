@@ -855,6 +855,52 @@ button, input, select, textarea {
   color: var(--text-main);
 }
 
+.rab-export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  border: 1.5px solid transparent;
+}
+
+/* PDF button — dark red like active tab */
+.rab-export-btn--pdf {
+  background: var(--bg-card);
+  border-color: #ff385c;
+  color: #ff385c;
+  box-shadow: 0 0 0 1px rgba(255, 56, 92, 0.15), inset 0 0 12px rgba(255, 56, 92, 0.06);
+}
+.rab-export-btn--pdf:hover {
+  background: rgba(255, 56, 92, 0.08);
+  border-color: #ff385c;
+  color: #ff385c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(255, 56, 92, 0.35), 0 0 0 1px rgba(255, 56, 92, 0.3);
+}
+
+/* Excel button — clean green outline with card background */
+.rab-export-btn--excel {
+  background: var(--bg-card);
+  border-color: #10b981;
+  color: #10b981;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.15), inset 0 0 12px rgba(16, 185, 129, 0.06);
+}
+.rab-export-btn--excel:hover {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: #10b981;
+  color: #10b981;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35), 0 0 0 1px rgba(16, 185, 129, 0.3);
+}
+
+
 .rab-dot {
   width: 6px;
   height: 6px;
@@ -1281,7 +1327,7 @@ button, input, select, textarea {
     width: 100%;
     justify-content: center;
   }
-  .rab-refresh-btn {
+  .rab-refresh-btn, .rab-export-btn {
     order: 1;
     padding: 0.65rem 1rem !important;
     font-size: 0.85rem !important;
@@ -2356,4 +2402,15 @@ button, input, select, textarea {
 @keyframes slideDown {
   from { transform: translateY(-100%); }
   to { transform: translateY(0); }
+}
+
+/* Responsive Desktop-Only Actions */
+.desktop-only-action {
+  display: flex !important;
+}
+
+@media (max-width: 768px) {
+  .desktop-only-action {
+    display: none !important;
+  }
 }
