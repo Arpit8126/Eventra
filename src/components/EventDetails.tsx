@@ -77,6 +77,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
   const isReportPage = currentHash.endsWith('/report');
   const isNotificationsPage = currentHash.endsWith('/notifications');
   const isInternalFundsPage = currentHash.endsWith('/internal-funds');
+  const isSubpageWithOwnHeader = isLogsPage || isAnalyticsPage || isNotificationsPage || isInternalFundsPage;
 
   // Click-away to close three-dot menu dropdown
   useEffect(() => {
@@ -268,125 +269,128 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
   return (
     <div className="app-container">
       {/* Event Header View */}
-      <div className="event-header-flat event-hub-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div className="header-top">
-            <button className="back-btn" onClick={isLogsPage || isAnalyticsPage || isReportPage || isNotificationsPage || isInternalFundsPage ? () => { window.location.hash = `#/event/${event.id}`; } : onBack} title={isLogsPage || isAnalyticsPage || isReportPage || isNotificationsPage || isInternalFundsPage ? "Back to Event Details" : "Back to Events"}>
-              <ArrowLeft size={18} />
-            </button>
-            <div>
-              <h1 className="event-title-text" style={{ fontFamily: 'Outfit', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                {event.name}
-              </h1>
+      {/* Event Header View */}
+      {!isSubpageWithOwnHeader && (
+        <div className="event-header-flat event-hub-header" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="header-top">
+              <button className="back-btn" onClick={isLogsPage || isAnalyticsPage || isReportPage || isNotificationsPage || isInternalFundsPage ? () => { window.location.hash = `#/event/${event.id}`; } : onBack} title={isLogsPage || isAnalyticsPage || isReportPage || isNotificationsPage || isInternalFundsPage ? "Back to Event Details" : "Back to Events"}>
+                <ArrowLeft size={18} />
+              </button>
+              <div>
+                <h1 className="event-title-text" style={{ fontFamily: 'Outfit', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                  {event.name}
+                </h1>
+              </div>
             </div>
-          </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            {/* Theme Toggler Button */}
-            <button 
-              className="back-btn" 
-              onClick={onToggleTheme} 
-              title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-            </button>
-
-            {/* Three Dot Action Dropdown Menu */}
-            <div style={{ position: 'relative' }} ref={menuRef}>
-              <button className="back-btn" onClick={() => setShowMenu(!showMenu)} title="Event Options">
-                <MoreVertical size={18} />
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              {/* Theme Toggler Button */}
+              <button 
+                className="back-btn" 
+                onClick={onToggleTheme} 
+                title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
               </button>
 
-              {showMenu && (
-                <div className="dropdown-menu">
-                  {isCreator ? (
-                    <>
-                      <button onClick={() => { setShowMenu(false); setRenameValue(event.name); setShowRenameModal(true); }}>
-                        <Edit2 size={14} /> Rename Event
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/internal-funds`; }}>
-                        <Settings size={14} /> Update Internal Funds
-                      </button>
-                      <button onClick={() => { setShowMenu(false); setShowAddMembersModal(true); }}>
-                        <Users size={14} /> Add/Remove Members
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/logs`; }}>
-                        <FileText size={14} /> See Logs
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/analytics`; }}>
-                        <BarChart2 size={14} /> Analytics
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/notifications`; }}>
-                        <Bell size={14} /> See Notifications
-                      </button>
-                      <button onClick={() => { setShowMenu(false); handleViewReport(); }} className="desktop-only-action">
-                        <FileText size={14} /> View Report
-                      </button>
-                      <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.25rem 0' }}></div>
-                      <button onClick={() => { setShowMenu(false); handleDeleteEvent(); }} className="danger-action">
-                        <Trash2 size={14} /> Delete Event
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/internal-funds`; }}>
-                        <Settings size={14} /> See Internal Funds
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/logs`; }}>
-                        <FileText size={14} /> See Logs
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/analytics`; }}>
-                        <BarChart2 size={14} /> See Analytics
-                      </button>
-                      <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/notifications`; }}>
-                        <Bell size={14} /> See Notifications
-                      </button>
-                      <button onClick={() => { setShowMenu(false); handleViewReport(); }} className="desktop-only-action">
-                        <FileText size={14} /> View Report
-                      </button>
-                      <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.25rem 0' }}></div>
-                      <button onClick={() => { setShowMenu(false); handleLeaveEvent(); }} className="danger-action">
-                        <LogOut size={14} /> Leave Event
-                      </button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+              {/* Three Dot Action Dropdown Menu */}
+              <div style={{ position: 'relative' }} ref={menuRef}>
+                <button className="back-btn" onClick={() => setShowMenu(!showMenu)} title="Event Options">
+                  <MoreVertical size={18} />
+                </button>
 
-        {/* Financial Stat Cards (Dynamic calculation displays) - Hide on logs/analytics routes */}
-        {!isLogsPage && !isAnalyticsPage && !isReportPage && (
-          <div className="event-stats-grid">
-            <div className="stat-card">
-              <span className="stat-label">Internal Fund</span>
-              <div className="stat-value" style={{ color: 'var(--text-main)' }}>
-                ₹{event.internal_fund.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-            <div className="stat-card total-fund">
-              <span className="stat-label">Total Fund</span>
-              <div className="stat-value">
-                ₹{totalFund.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-            <div className="stat-card total-expenses">
-              <span className="stat-label">Total Expenses</span>
-              <div className="stat-value">
-                ₹{totalExpensesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-            <div className="stat-card available-fund">
-              <span className="stat-label">Available Fund</span>
-              <div className={`stat-value ${availableFund >= 0 ? 'positive' : 'negative'}`}>
-                {availableFund < 0 ? '-' : ''}₹{Math.abs(availableFund).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {showMenu && (
+                  <div className="dropdown-menu">
+                    {isCreator ? (
+                      <>
+                        <button onClick={() => { setShowMenu(false); setRenameValue(event.name); setShowRenameModal(true); }}>
+                          <Edit2 size={14} /> Rename Event
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/internal-funds`; }}>
+                          <Settings size={14} /> Update Internal Funds
+                        </button>
+                        <button onClick={() => { setShowMenu(false); setShowAddMembersModal(true); }}>
+                          <Users size={14} /> Add/Remove Members
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/logs`; }}>
+                          <FileText size={14} /> See Logs
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/analytics`; }}>
+                          <BarChart2 size={14} /> Analytics
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/notifications`; }}>
+                          <Bell size={14} /> See Notifications
+                        </button>
+                        <button onClick={() => { setShowMenu(false); handleViewReport(); }} className="desktop-only-action">
+                          <FileText size={14} /> View Report
+                        </button>
+                        <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.25rem 0' }}></div>
+                        <button onClick={() => { setShowMenu(false); handleDeleteEvent(); }} className="danger-action">
+                          <Trash2 size={14} /> Delete Event
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/internal-funds`; }}>
+                          <Settings size={14} /> See Internal Funds
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/logs`; }}>
+                          <FileText size={14} /> See Logs
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/analytics`; }}>
+                          <BarChart2 size={14} /> See Analytics
+                        </button>
+                        <button onClick={() => { setShowMenu(false); window.location.hash = `#/event/${event.id}/notifications`; }}>
+                          <Bell size={14} /> See Notifications
+                        </button>
+                        <button onClick={() => { setShowMenu(false); handleViewReport(); }} className="desktop-only-action">
+                          <FileText size={14} /> View Report
+                        </button>
+                        <div style={{ borderTop: '1px solid var(--border-color)', margin: '0.25rem 0' }}></div>
+                        <button onClick={() => { setShowMenu(false); handleLeaveEvent(); }} className="danger-action">
+                          <LogOut size={14} /> Leave Event
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Financial Stat Cards (Dynamic calculation displays) - Hide on logs/analytics routes */}
+          {!isLogsPage && !isAnalyticsPage && !isReportPage && (
+            <div className="event-stats-grid">
+              <div className="stat-card">
+                <span className="stat-label">Internal Fund</span>
+                <div className="stat-value" style={{ color: 'var(--text-main)' }}>
+                  ₹{event.internal_fund.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="stat-card total-fund">
+                <span className="stat-label">Total Fund</span>
+                <div className="stat-value">
+                  ₹{totalFund.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="stat-card total-expenses">
+                <span className="stat-label">Total Expenses</span>
+                <div className="stat-value">
+                  ₹{totalExpensesSum.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="stat-card available-fund">
+                <span className="stat-label">Available Fund</span>
+                <div className={`stat-value ${availableFund >= 0 ? 'positive' : 'negative'}`}>
+                  {availableFund < 0 ? '-' : ''}₹{Math.abs(availableFund).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Budget Navigation Tabs & List */}
       {loading ? (
