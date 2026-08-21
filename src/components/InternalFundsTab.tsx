@@ -155,7 +155,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
           className="back-btn" 
           onClick={onClose} 
           title="Back to Event Details"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-item)', border: '1px solid var(--border-color)', borderRadius: '50%', padding: '0.6rem', cursor: 'pointer' }}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-item)', border: '1px solid var(--border-color)', borderRadius: '50%', width: '40px', height: '40px', minWidth: '40px', minHeight: '40px', cursor: 'pointer', padding: 0 }}
         >
           <ArrowLeft size={18} />
         </button>
@@ -375,6 +375,15 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
 
       <style>{`
         @media (max-width: 600px) {
+          .app-container {
+            padding: 1rem 0.5rem !important;
+          }
+          .internal-funds-page {
+            padding: 1rem 0.25rem 5rem !important;
+          }
+          .member-fund-row {
+            padding: 1rem !important;
+          }
           .fund-header-row {
             flex-direction: column !important;
             align-items: flex-start !important;
