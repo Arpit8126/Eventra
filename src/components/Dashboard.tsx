@@ -107,7 +107,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       if (eventIds.length > 0) {
         const [expensesRes, incomeRes] = await Promise.all([
           supabase.from('expenses').select('event_id, amount').in('event_id', eventIds),
-          supabase.from('income').select('event_id, amount').in('event_id', eventIds),
+          supabase.from('income').select('event_id, amount, status').in('event_id', eventIds),
         ]);
 
         (expensesRes.data || []).forEach((item) => {
@@ -115,7 +115,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         });
 
         (incomeRes.data || []).forEach((item) => {
-          incMap[item.event_id] = (incMap[item.event_id] || 0) + item.amount;
+          if (item.status !== 'Pending Approval') {
+            incMap[item.event_id] = (incMap[item.event_id] || 0) + item.amount;
+          }
         });
 
         setEventExpenses(expMap);

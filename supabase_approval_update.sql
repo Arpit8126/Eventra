@@ -49,6 +49,7 @@ create policy "Users can insert event notifications"
     to authenticated
     with check (
         member_id = auth.uid() or
+        event_id in (select event_id from public.event_members where member_id = auth.uid()) or
         event_id in (select id from public.events where creator_id = auth.uid())
     );
 
