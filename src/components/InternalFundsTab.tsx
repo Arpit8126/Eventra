@@ -8,6 +8,7 @@ interface InternalFundsTabProps {
   creatorId: string;
   isCreator: boolean;
   onClose: () => void;
+  onUpdate: () => void;
 }
 
 interface MemberWithFunds {
@@ -21,6 +22,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
   creatorId,
   isCreator,
   onClose,
+  onUpdate,
 }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -124,6 +126,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
 
       setInputAmounts((prev) => ({ ...prev, [memberId]: '' }));
       await fetchData();
+      onUpdate();
     } catch (err: any) {
       console.error('Error adding internal fund contribution:', err);
       setErrorMsg(err.message || 'Failed to add internal fund contribution.');
@@ -289,7 +292,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
 
                 {/* Contribution Action (Only visible to Creator) */}
                 {isCreator && (
-                  <div style={{
+                  <div className="fund-action-container" style={{
                     display: 'flex',
                     gap: '0.75rem',
                     alignItems: 'center',
@@ -298,7 +301,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
                     padding: '1rem',
                     borderRadius: 'var(--radius-md)'
                   }}>
-                    <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
+                    <div className="fund-action-input-wrapper" style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
                       <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600 }}>₹</span>
                       <input
                         type="number"
@@ -313,7 +316,7 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
                       />
                     </div>
                     <button
-                      className="btn btn-primary"
+                      className="btn btn-primary fund-action-btn"
                       style={{ padding: '0 1.25rem', height: '40px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
                       onClick={() => handleAddFund(profile.id)}
                       disabled={actionLoading !== null || !inputAmounts[profile.id]}
@@ -368,6 +371,23 @@ export const InternalFundsTab: React.FC<InternalFundsTabProps> = ({
           })}
         </div>
       )}
+
+      <style>{`
+        @media (max-width: 600px) {
+          .fund-action-container {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .fund-action-input-wrapper {
+            max-width: none !important;
+            width: 100% !important;
+          }
+          .fund-action-btn {
+            width: 100% !important;
+            justify-content: center !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

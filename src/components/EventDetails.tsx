@@ -418,6 +418,7 @@ export const EventDetails: React.FC<EventDetailsProps> = ({
           creatorId={event.creator_id}
           isCreator={isCreator}
           onClose={() => { window.location.hash = `#/event/${event.id}`; }}
+          onUpdate={fetchBudgetAndRecords}
         />
       ) : isReportPage ? (
         (() => {
